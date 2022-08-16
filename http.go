@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/go-woo/protoc-gen-gin/third_party/protoc-gen-openapiv2/options"
@@ -121,45 +120,51 @@ func genService(gen *protogen.Plugin, file *protogen.File, g *protogen.Generated
 		ServiceType: service.GoName,
 		ServiceName: string(service.Desc.FullName()),
 		Metadata:    file.Desc.Path(),
+		HasJwt:      false,
+		LoginUrl:    "",
 	}
 
-	//get default host string=get JWT token URL
+	// get default genTokenUrl
+	// from option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger)
+	// file options
 	swagger := proto.GetExtension(file.Desc.Options(), options.E_Openapiv2Swagger).(*options.Swagger)
-	sj, _ := json.Marshal(swagger)
-	fmt.Fprintf(os.Stderr, "swagger===%v\n", string(sj))
-	os.Exit(2)
-
-	host := ""
-	sd.LoginUrl = host
-
-	//get oauth scopes=JWT root path
-	oas := proto.GetExtension(service.Desc.Options(), annotations.E_OauthScopes).(string)
-	//fmt.Fprintf(os.Stderr, "score===========%v\n", oas)
-	scopes := strings.Split(oas, ",")
-	for _, scope := range scopes {
-		sd.JwtRootPaths = append(sd.JwtRootPaths,
-			&JwtRootPath{RootPath: strings.TrimPrefix(scope, "/")})
+	gs := swagger.SecurityDefinitions.GetSecurity()
+	for _, v := range gs {
+		if v.Type == options.SecurityScheme_TYPE_API_KEY {
+			sd.HasJwt = true
+			for k, l := range v.Extensions {
+				if k == "x-who-gen-token" {
+					sd.LoginUrl = l.GetStringValue()
+				}
+			}
+		}
 	}
-	hasJwt := false
-	if len(scopes) > 0 {
-		hasJwt = true
-	}
-	sd.HasJwt = hasJwt
 
 	for _, method := range service.Methods {
 		if method.Desc.IsStreamingClient() || method.Desc.IsStreamingServer() {
 			continue
 		}
-		//authorization := false
+
+		// option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation)
+		// method options
+		requireToken := false
+		rt := proto.GetExtension(method.Desc.Options(), options.E_Openapiv2Operation).(*options.Operation)
+		for _, s := range rt.GetSecurity() {
+			for k, _ := range s.GetSecurityRequirement() {
+				if k == "ApiKeyAuth" {
+					requireToken = true
+				}
+			}
+		}
 		rule, ok := proto.GetExtension(method.Desc.Options(), annotations.E_Http).(*annotations.HttpRule)
 		if rule != nil && ok {
 			for _, bind := range rule.AdditionalBindings {
-				sd.Methods = append(sd.Methods, buildHTTPRule(g, method, bind, host, scopes))
+				sd.Methods = append(sd.Methods, buildHTTPRule(g, method, bind, sd.LoginUrl, requireToken))
 			}
-			sd.Methods = append(sd.Methods, buildHTTPRule(g, method, rule, host, scopes))
+			sd.Methods = append(sd.Methods, buildHTTPRule(g, method, rule, sd.LoginUrl, requireToken))
 		} else if !omitempty {
 			path := fmt.Sprintf("/%s/%s", service.Desc.FullName(), method.Desc.Name())
-			sd.Methods = append(sd.Methods, buildMethodDesc(g, method, "POST", path, host, scopes))
+			sd.Methods = append(sd.Methods, buildMethodDesc(g, method, "POST", path, sd.LoginUrl, requireToken))
 		}
 	}
 	if len(sd.Methods) != 0 {
@@ -182,7 +187,7 @@ func hasHTTPRule(services []*protogen.Service) bool {
 	return false
 }
 
-func buildHTTPRule(g *protogen.GeneratedFile, m *protogen.Method, rule *annotations.HttpRule, host string, scopes []string) *methodDesc {
+func buildHTTPRule(g *protogen.GeneratedFile, m *protogen.Method, rule *annotations.HttpRule, loginUrl string, requireToken bool) *methodDesc {
 	var (
 		path         string
 		method       string
@@ -212,7 +217,7 @@ func buildHTTPRule(g *protogen.GeneratedFile, m *protogen.Method, rule *annotati
 	}
 	body = rule.Body
 	responseBody = rule.ResponseBody
-	md := buildMethodDesc(g, m, method, path, host, scopes)
+	md := buildMethodDesc(g, m, method, path, loginUrl, requireToken)
 	if method == "GET" || method == "DELETE" {
 		if body != "" {
 			_, _ = fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: %s %s body should not be declared.\n", method, path)
@@ -240,38 +245,13 @@ func buildHTTPRule(g *protogen.GeneratedFile, m *protogen.Method, rule *annotati
 	return md
 }
 
-func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, method, path string, host string, scopes []string) *methodDesc {
+func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, method, path string, loginUrl string, requireToken bool) *methodDesc {
 	defer func() { methodSets[m.GoName]++ }()
 
-	//get all rpc-method's input mapping XxxxRequest all field name and conv to GoName
-	//var rf []*RequestField
-	//lenFields := m.Desc.Input().Fields().Len()
-	//for i := 0; i < lenFields; i++ {
-	//	fld := m.Desc.Input().Fields().Get(i)
-	//	ce := buildExpr(string(fld.Name()), camelCaseVars(string(fld.Name())), fld)
-	//	rf = append(rf, &RequestField{
-	//		ProtoName: string(fld.Name()),
-	//		GoName:    camelCaseVars(string(fld.Name())),
-	//		GoType:    fld.Kind().String(),
-	//		ConvExpr:  ce,
-	//	})
-	//}
-
-	inScope := false
 	isLogin := false
-	scope := ""
 
-	if path == host {
+	if path == loginUrl {
 		isLogin = true
-	}
-
-	for _, v := range scopes {
-		if strings.Index(path+"/", v+"/") == 0 {
-			inScope = true
-			scope = strings.TrimPrefix(v, "/")
-			path = strings.TrimPrefix(path, scope)
-			break
-		}
 	}
 
 	vars := buildPathVars(path)
@@ -308,21 +288,23 @@ func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, method, path
 	for v, _ := range vars {
 		path = replacePath(v, "", path)
 	}
-
+	hn := 0
+	if methodSets[m.GoName] > 1 {
+		hn--
+	}
 	return &methodDesc{
 		Name:         m.GoName,
 		OriginalName: string(m.Desc.Name()),
 		Num:          methodSets[m.GoName],
+		HandlerNum:   hn,
 		Request:      g.QualifiedGoIdent(m.Input.GoIdent),
 		Reply:        g.QualifiedGoIdent(m.Output.GoIdent),
 		Path:         path,
 		Method:       method,
 		HasVars:      len(vars) > 0,
-		//Fields:       rf,
-		DefaultHost: host,
-		InScope:     inScope,
-		Scope:       scope,
-		IsLogin:     isLogin,
+		LoginUrl:     loginUrl,
+		RequireToken: requireToken,
+		IsLogin:      isLogin,
 	}
 }
 

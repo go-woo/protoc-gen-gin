@@ -22,3 +22,7 @@ protoc -I . --openapiv2_out ./gen/openapiv2 \
 --openapiv2_opt logtostderr=true \
 your/service/v1/your_service.proto
 ```
+
+``` 
+swagger==={"info":{"title":"Greeter service","contact":{"name":"protoc-gen-gin example","url":"https://github.com/go-woo/protoc-gen-gin","email":"none@example.com"},"license":{"name":"MIT License","url":"https://github.com/go-woo/protoc-gen-gin/blob/main/LICENSE"},"version":"1.0"},"security_definitions":{"security":{"ApiKeyAuth":{"type":2,"name":"X-API-Key","in":2,"extensions":{"x-who-gen-token":"/login"}}}},"security":[{"security_requirement":{"ApiKeyAuth":{}}}]}
+```

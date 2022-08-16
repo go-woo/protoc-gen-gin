@@ -9,7 +9,6 @@ import (
 var routerTemplate = `
 import (
 	"net/http"
-	"os"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-woo/protoc-gen-gin/runtime"
@@ -18,58 +17,53 @@ import (
 {{$svrName := .ServiceName}}
 {{$hasJwt := .HasJwt}}
 func Register{{.ServiceType}}Router(r *gin.Engine) {
-	{{- if $hasJwt}}
-	jwtKey := "dangerous"
-	if os.Getenv("JWTKEY") != "" {
-		jwtKey = os.Getenv("JWTKEY")
-	}
-	config := middleware.JWTConfig{
-		Claims:     &JwtCustomClaims{},
-		SigningKey: []byte(jwtKey),
-	}
-	{{end}}
-	{{- range .JwtRootPaths}}
-	{{.RootPath}} := e.Group("/{{.RootPath}}")
-	{{.RootPath}}.Use(middleware.JWTWithConfig(config))
-	{{end}}
 	{{- range .Methods}}
-	{{- if .InScope}}
-	{{.Scope}}.{{.Method}}("{{.Path}}", _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler)
+	{{- if .RequireToken}}
+	r.{{.Method}}("{{.Path}}", JWTAuthMiddleware, _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler)
 	{{- else}}
-	e.{{.Method}}("{{.Path}}", _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler)
+	r.{{.Method}}("{{.Path}}", _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler)
 	{{end}}
 	{{- end}}
 }
 {{range .Methods}}
-func _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(c *gin.Context) error {
-	var req *{{.Request}} = new({{.Request}})
-	{{- if .HasBody}}
-	if err := c.Bind(req); err != nil {
-		return err
+func _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(c *gin.Context) {
+	if c.Request.ParseForm() != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"reason": "form data format error",
+			"msg":    "",
+		})
 	}
-	{{- end}}
-	uv := c.QueryParams()
+	uv := c.Request.Form
+
+	var req *{{.Request}} = new({{.Request}})
 	{{- range .Fields}}
 	uv.Add("{{.ProtoName}}", c.Param("{{.ProtoName}}"))
 	{{- end}}
-	return runtime.BindValues(req, uv)
-	reply, err := {{$svrType}}{{.Name}}BusinessHandler(req, c)
-	if err != nil {
-		return err
+	if len(uv) > 0 {
+		if err := runtime.BindValues(req, uv); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"reason": "request data format error",
+				"msg":    "",
+			})
+		}
 	}
-	return c.JSON(http.StatusOK, &reply)
+	reply, err := {{$svrType}}{{.Name}}BusinessHandler{{.Num}}(req, c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"reason": "BusinessHandler error",
+			"msg":    "",
+		})
+	}
+	c.JSON(http.StatusOK, &reply)
 }
 {{end}}
 `
 
 var handlerTemplate = `
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 	"time"
 
-	"github.com/go-woo/protoc-gen-gin/runtime"
 	"github.com/golang-jwt/jwt"
 	"github.com/gin-gonic/gin"
 )
@@ -77,76 +71,111 @@ import (
 {{$svrName := .ServiceName}}
 {{$hasJwt := .HasJwt}}
 {{range .Methods}}
-func {{$svrType}}{{.Name}}BusinessHandler(req *{{.Request}}, c *gin.Context) ({{.Reply}}, error) {
+func {{$svrType}}{{.Name}}BusinessHandler{{.HandlerNum}}(req *{{.Request}}, c *gin.Context) ({{.Reply}}, error) {
 	{{- if .IsLogin}}
-	// Throws unauthorized error
-	if req.Username != "hello" || req.Password != "world" {
-		return {{.Reply}}{}, echo.ErrUnauthorized
+	username := c.PostForm("username")
+	password := c.PostForm("password")
+	if username == "hello" && password == "world" {
+		token, _ := genToken(MyCustomClaims{1, "hello", jwt.StandardClaims{
+			ExpiresAt: time.Now().Add(7 * time.Hour).Unix(),
+			Issuer:    "hello",
+		}})
+		return {{.Reply}}{Token: "Bearer " + token}, nil
+	} else {
+		return {{.Reply}}{}, fmt.Errorf("username or password error")
 	}
-	// Set custom claims
-	claims := &JwtCustomClaims{
-		Name:  "Hello World",
-		Admin: true,
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: time.Now().Add(time.Hour * 72).Unix(),
-		},
-	}
-	// Create token with claims
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	// Generate encoded token and send it as response.
-	jk := "dangerous"
-	if os.Getenv("JWTKEY") != "" {
-		jk = os.Getenv("JWTKEY")
-	}
-	t, err := token.SignedString([]byte(jk))
-	if err != nil {
-		return {{.Reply}}{}, err
-	}
-	{{end}}
-	{{- if .InScope}}
-	user := c.Get("user").(*jwt.Token)
-	claims := user.Claims.(*JwtCustomClaims)
-	username := claims.Name
-	fmt.Printf("Got jwt name is: %v\n", username)
-	req.Username = username
-	{{end}}
+	{{- else}}
 	// Here can put your business logic, can use ORM:github.com/go-woo/protoc-gen-ent
 	// Below is example business logic code
-	rj, err := json.Marshal(req)
-	if err != nil {
-		return {{.Reply}}{}, err
+	{{- if .RequireToken}}
+	if u, ok := c.Get("userid"); ok {
+		fmt.Printf("get userid %v ok", u)
+	} else {
+		return {{.Reply}}{}, fmt.Errorf("username or password error")
 	}
-	fmt.Printf("Got {{.Request}} is: %v\n", string(rj))
-	{{- if .IsLogin}}
-	return {{.Reply}}{Token: "Bearer " + t}, nil
-	{{- else}}
-	return {{.Reply}}{}, nil {{end}}
+	{{end}}
+	return {{.Reply}}{}, nil{{end}}
 }
 {{end}}
 `
 var authTypeTemplate = `
 
-import "github.com/golang-jwt/jwt"
+import (
+	"fmt"
+	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt"
+	"net/http"
+	"strings"
+)
 
-// jwtCustomClaims are custom claims extending default ones.
-// See https://github.com/golang-jwt/jwt for more examples
-type JwtCustomClaims struct {
-	Name  string ` + "`json:\"name\"`" + `
-	Admin bool   ` + "`json:\"admin\"`" + `
+type MyCustomClaims struct {
+	Id       int    ` + "`json:\"id\"`" + `
+	Username string ` + "`json:\"username\"`" + `
 	jwt.StandardClaims
 }
 
+var mySigningKey = []byte("dangerous")
+
+func genToken(claims MyCustomClaims) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signToken, err := token.SignedString(mySigningKey)
+	if err != nil {
+		return "", err
+	}
+	return signToken, nil
+
+}
+
+func parserToken(signToken string) (*MyCustomClaims, error) {
+	t := strings.Split(signToken, " ")
+	if len(t) != 2 || t[0] != "Bearer" {
+		return nil, fmt.Errorf("token format invalid")
+	}
+	var claims MyCustomClaims
+	token, err := jwt.ParseWithClaims(t[1], &claims, func(token *jwt.Token) (interface{}, error) {
+		return mySigningKey, nil
+	})
+	if token.Valid {
+		return &claims, nil
+	} else {
+		return nil, err
+	}
+}
+
+func JWTAuthMiddleware(c *gin.Context) {
+	signToken := c.Request.Header.Get("Authorization")
+	if signToken == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"reason": "Authorization can't null",
+			"msg":    "",
+		})
+		c.Abort()
+		return
+	}
+	myclaims, err := parserToken(signToken)
+	if err != nil {
+		fmt.Println(err)
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"reason": "Token is invalid",
+			"msg":    "",
+		})
+		c.Abort()
+		return
+	}
+	c.Set("userid", myclaims.Id)
+	c.Next()
+}
 `
 
 type serviceDesc struct {
-	ServiceType  string // Greeter
-	ServiceName  string // example.Greeter
-	Metadata     string // example/v1/greeter.proto
-	Methods      []*methodDesc
-	MethodSets   map[string]*methodDesc
-	LoginUrl     string
-	HasJwt       bool
-	JwtRootPaths []*JwtRootPath
+	ServiceType string // Greeter
+	ServiceName string // example.Greeter
+	Metadata    string // example/v1/greeter.proto
+	Methods     []*methodDesc
+	MethodSets  map[string]*methodDesc
+	LoginUrl    string
+	HasJwt      bool
+	//JwtRootPaths []*JwtRootPath
 }
 
 type JwtRootPath struct {
@@ -157,6 +186,7 @@ type methodDesc struct {
 	Name         string
 	OriginalName string // The parsed original name
 	Num          int
+	HandlerNum   int
 	Request      string
 	Reply        string
 	Path         string
@@ -166,9 +196,8 @@ type methodDesc struct {
 	Body         string
 	ResponseBody string
 	Fields       []*RequestField
-	DefaultHost  string
-	InScope      bool
-	Scope        string
+	LoginUrl     string
+	RequireToken bool
 	IsLogin      bool
 }
 

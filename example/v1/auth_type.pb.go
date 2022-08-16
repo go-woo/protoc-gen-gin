@@ -1,4 +1,10 @@
-package main
+// Auth use data type.
+// versions:
+// - protoc-gen-gin v0.0.1
+// - protoc  v3.12.4
+// source: example/v1/greeter.proto
+
+package v1
 
 import (
 	"fmt"
@@ -6,7 +12,6 @@ import (
 	"github.com/golang-jwt/jwt"
 	"net/http"
 	"strings"
-	"time"
 )
 
 type MyCustomClaims struct {
@@ -65,50 +70,4 @@ func JWTAuthMiddleware(c *gin.Context) {
 	}
 	c.Set("userid", myclaims.Id)
 	c.Next()
-}
-
-func main() {
-	gin.SetMode(gin.ReleaseMode)
-	r := gin.Default()
-	RegisterRouter(r)
-	if err := r.Run(":8080"); err != nil {
-		fmt.Printf("Server starting error:%v\n", err)
-	}
-}
-
-func RegisterRouter(r *gin.Engine) {
-	r.POST("/login", Login)
-
-	r.GET("/secure", JWTAuthMiddleware, Secure)
-
-	r.GET("/secure/health", Health)
-}
-
-func Login(c *gin.Context) {
-	username := c.PostForm("username")
-	password := c.PostForm("password")
-	if username == "hello" && password == "world" {
-		token, _ := genToken(MyCustomClaims{1, "hello", jwt.StandardClaims{
-			ExpiresAt: time.Now().Add(7 * time.Hour).Unix(),
-			Issuer:    "hello",
-		}})
-		c.JSON(http.StatusOK, gin.H{"token": "Bearer " + token})
-	} else {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"reason": "Username or password error",
-			"msg":    "",
-		})
-	}
-}
-
-func Secure(c *gin.Context) {
-	if u, ok := c.Get("userid"); ok {
-		c.String(http.StatusOK, "/secure Got user %v OK!", u)
-	} else {
-		c.Status(http.StatusInternalServerError)
-	}
-}
-
-func Health(c *gin.Context) {
-	c.String(http.StatusOK, "/secure/health OK!")
 }
