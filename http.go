@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/go-woo/protoc-gen-gin/third_party/protoc-gen-openapiv2/options"
 	"google.golang.org/genproto/googleapis/api/annotations"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
@@ -122,7 +124,12 @@ func genService(gen *protogen.Plugin, file *protogen.File, g *protogen.Generated
 	}
 
 	//get default host string=get JWT token URL
-	host := proto.GetExtension(service.Desc.Options(), annotations.E_DefaultHost).(string)
+	swagger := proto.GetExtension(file.Desc.Options(), options.E_Openapiv2Swagger).(*options.Swagger)
+	sj, _ := json.Marshal(swagger)
+	fmt.Fprintf(os.Stderr, "swagger===%v\n", string(sj))
+	os.Exit(2)
+
+	host := ""
 	sd.LoginUrl = host
 
 	//get oauth scopes=JWT root path

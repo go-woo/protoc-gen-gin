@@ -70,18 +70,21 @@ func JWTAuthMiddleware(c *gin.Context) {
 func main() {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
-	r.POST("/login", login)
-
-	r.GET("/secure", JWTAuthMiddleware, secure)
-
-	r.GET("/secure/health", health)
-
+	RegisterRouter(r)
 	if err := r.Run(":8080"); err != nil {
 		fmt.Printf("Server starting error:%v\n", err)
 	}
 }
 
-func login(c *gin.Context) {
+func RegisterRouter(r *gin.Engine) {
+	r.POST("/login", Login)
+
+	r.GET("/secure", JWTAuthMiddleware, Secure)
+
+	r.GET("/secure/health", Health)
+}
+
+func Login(c *gin.Context) {
 	username := c.PostForm("username")
 	password := c.PostForm("password")
 	if username == "hello" && password == "world" {
@@ -98,7 +101,7 @@ func login(c *gin.Context) {
 	}
 }
 
-func secure(c *gin.Context) {
+func Secure(c *gin.Context) {
 	if u, ok := c.Get("userid"); ok {
 		c.String(http.StatusOK, "/secure Got user %v OK!", u)
 	} else {
@@ -106,6 +109,6 @@ func secure(c *gin.Context) {
 	}
 }
 
-func health(c *gin.Context) {
+func Health(c *gin.Context) {
 	c.String(http.StatusOK, "/secure/health OK!")
 }
