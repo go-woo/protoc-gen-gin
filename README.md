@@ -16,13 +16,25 @@ annotations in your service definitions.
 - Optionally emitting API definitions for
   [OpenAPI (Swagger) v2](https://swagger.io/docs/specification/2-0/basic-structure/).
 
+## How to use
+``` 
+$ go install \
+	google.golang.org/protobuf/cmd/protoc-gen-go@latest \
+	google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest \
+	github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@latest \
+	github.com/go-woo/protoc-gen-gin@latest
+
+$ protoc --proto_path=. \
+    --proto_path=./third_party \
+    --go_out=paths=source_relative:. \
+    --gin_out=paths=source_relative:. \
+    ./v1/greeter.proto
+```
 ## Generate OpenAPI v2 specification
 ```
-protoc -I . --openapiv2_out ./gen/openapiv2 \
---openapiv2_opt logtostderr=true \
-your/service/v1/your_service.proto
-```
-
-``` 
-swagger==={"info":{"title":"Greeter service","contact":{"name":"protoc-gen-gin example","url":"https://github.com/go-woo/protoc-gen-gin","email":"none@example.com"},"license":{"name":"MIT License","url":"https://github.com/go-woo/protoc-gen-gin/blob/main/LICENSE"},"version":"1.0"},"security_definitions":{"security":{"ApiKeyAuth":{"type":2,"name":"X-API-Key","in":2,"extensions":{"x-who-gen-token":"/login"}}}},"security":[{"security_requirement":{"ApiKeyAuth":{}}}]}
+$ protoc --proto_path=. \
+    --proto_path=./third_party \
+    --openapiv2_out . \
+    --openapiv2_opt logtostderr=true \
+    ./v1/greeter.proto
 ```
