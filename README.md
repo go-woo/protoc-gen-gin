@@ -11,8 +11,11 @@ annotations in your service definitions.
 - Method parameters in the request body.
 - Method parameters in the request path.
 - Method parameters in the query string.
-- JWT supported and can generate OpenAPI v2 document.
-- Enum fields in the path parameter (including repeated enum fields).
+- JWT supported.
+- Generate OpenAPIv2 with JWT document.
+- Multi tenants supported.
+- Generate OpenAPIv2 with Multi-tenants document.(soon coming)
+- Enum fields in the path parameter.
 - Optionally emitting API definitions for
   [OpenAPI (Swagger) v2](https://swagger.io/docs/specification/2-0/basic-structure/).
 
