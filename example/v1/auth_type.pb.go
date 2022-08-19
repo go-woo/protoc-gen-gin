@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt"
 	"net/http"
+	"os"
 	"strings"
 )
 
@@ -27,11 +28,15 @@ var mySigningKey = []byte("dangerous")
 var enforcer *casbin.Enforcer
 
 func init() {
-	a, err := entadapter.NewAdapter("mysql", "root:123456@tcp(127.0.0.1:3306)/casbin")
+	cu := os.Getenv("CASBIN_URL")
+	if cu == "" {
+		cu = "root:123456@tcp(127.0.0.1:3306)/casbin"
+	}
+	a, err := entadapter.NewAdapter("mysql", cu)
 	if err != nil {
 		panic(err)
 	}
-	if enforcer, err = casbin.NewEnforcer("./rbac_model.conf", a); err != nil {
+	if enforcer, err = casbin.NewEnforcer("./rbac_with_domains_model.conf", a); err != nil {
 		panic(err)
 	}
 }

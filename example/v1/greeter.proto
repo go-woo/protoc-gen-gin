@@ -10,7 +10,7 @@ import "google/api/resource.proto";
 //import "google/protobuf/field_mask.proto";
 import "google/protobuf/timestamp.proto";
 
-import "gent/gent.proto";
+import "protoc-gen-ent/gent/gent.proto";
 import "protoc-gen-openapiv2/options/annotations.proto";
 
 option go_package = "protoc-gen-gin/example/v1;v1";
