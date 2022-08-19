@@ -20,8 +20,8 @@ func RegisterGreeterRouter(r *gin.Engine) {
 
 	r.POST("/login", _Greeter_Login0_HTTP_Handler)
 
-	r.PATCH("/restricted/usr/:phone", JWTAuthMiddleware, _Greeter_UpdateUser0_HTTP_Handler)
-	r.DELETE("/usr/:phone", JWTAuthMiddleware, _Greeter_DeleteUser0_HTTP_Handler)
+	r.PATCH("/restricted/usr/:phone", WooAuthMiddleware, _Greeter_UpdateUser0_HTTP_Handler)
+	r.DELETE("/usr/:phone", WooAuthMiddleware, _Greeter_DeleteUser0_HTTP_Handler)
 	r.GET("/usr/:phone", _Greeter_ListUsers0_HTTP_Handler)
 
 }
@@ -34,7 +34,6 @@ func _Greeter_SayHello0_HTTP_Handler(c *gin.Context) {
 		})
 	}
 	uv := c.Request.Form
-
 	var req *HelloRequest = new(HelloRequest)
 	if len(uv) > 0 {
 		if err := runtime.BindValues(req, uv); err != nil {
@@ -62,7 +61,6 @@ func _Greeter_CreateUser0_HTTP_Handler(c *gin.Context) {
 		})
 	}
 	uv := c.Request.Form
-
 	var req *CreateUserRequest = new(CreateUserRequest)
 	if len(uv) > 0 {
 		if err := runtime.BindValues(req, uv); err != nil {
@@ -90,7 +88,6 @@ func _Greeter_Login0_HTTP_Handler(c *gin.Context) {
 		})
 	}
 	uv := c.Request.Form
-
 	var req *LoginRequest = new(LoginRequest)
 	if len(uv) > 0 {
 		if err := runtime.BindValues(req, uv); err != nil {
@@ -118,7 +115,6 @@ func _Greeter_UpdateUser0_HTTP_Handler(c *gin.Context) {
 		})
 	}
 	uv := c.Request.Form
-
 	var req *UpdateUserRequest = new(UpdateUserRequest)
 	if len(uv) > 0 {
 		if err := runtime.BindValues(req, uv); err != nil {
@@ -146,7 +142,6 @@ func _Greeter_DeleteUser0_HTTP_Handler(c *gin.Context) {
 		})
 	}
 	uv := c.Request.Form
-
 	var req *UserRequest = new(UserRequest)
 	if len(uv) > 0 {
 		if err := runtime.BindValues(req, uv); err != nil {
@@ -174,7 +169,6 @@ func _Greeter_ListUsers0_HTTP_Handler(c *gin.Context) {
 		})
 	}
 	uv := c.Request.Form
-
 	var req *UserRequest = new(UserRequest)
 	if len(uv) > 0 {
 		if err := runtime.BindValues(req, uv); err != nil {

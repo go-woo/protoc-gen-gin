@@ -28,7 +28,7 @@ $ protoc --proto_path=. \
     --proto_path=./third_party \
     --go_out=paths=source_relative:. \
     --gin_out=paths=source_relative:. \
-    ./v1/greeter.proto
+    ./example/v1/greeter.proto
 ```
 ## Generate OpenAPI v2 specification
 ```
@@ -36,5 +36,5 @@ $ protoc --proto_path=. \
     --proto_path=./third_party \
     --openapiv2_out . \
     --openapiv2_opt logtostderr=true \
-    ./v1/greeter.proto
+    ./example/v1/greeter.proto
 ```

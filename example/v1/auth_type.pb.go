@@ -8,6 +8,8 @@ package v1
 
 import (
 	"fmt"
+	"github.com/casbin/casbin/v2"
+	entadapter "github.com/casbin/ent-adapter"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt"
 	"net/http"
@@ -22,6 +24,17 @@ type MyCustomClaims struct {
 
 var mySigningKey = []byte("dangerous")
 
+var enforcer *casbin.Enforcer
+
+func init() {
+	a, err := entadapter.NewAdapter("mysql", "root:123456@tcp(127.0.0.1:3306)/casbin")
+	if err != nil {
+		panic(err)
+	}
+	if enforcer, err = casbin.NewEnforcer("./rbac_model.conf", a); err != nil {
+		panic(err)
+	}
+}
 func genToken(claims MyCustomClaims) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signToken, err := token.SignedString(mySigningKey)
@@ -48,26 +61,33 @@ func parserToken(signToken string) (*MyCustomClaims, error) {
 	}
 }
 
-func JWTAuthMiddleware(c *gin.Context) {
+func WooAuthMiddleware(c *gin.Context) {
 	signToken := c.Request.Header.Get("Authorization")
 	if signToken == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 			"reason": "Authorization can't null",
 			"msg":    "",
 		})
-		c.Abort()
 		return
 	}
 	myclaims, err := parserToken(signToken)
 	if err != nil {
 		fmt.Println(err)
-		c.JSON(http.StatusUnauthorized, gin.H{
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 			"reason": "Token is invalid",
 			"msg":    "",
 		})
-		c.Abort()
 		return
 	}
 	c.Set("userid", myclaims.Id)
+	c.Set("username", myclaims.Username)
+	if has, err := enforcer.Enforce(myclaims.Username, c.Request.RequestURI, c.Request.Method); err != nil || !has {
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+			"reason": "casbin did not permission",
+			"msg":    "forbidden",
+		})
+		return
+	}
+
 	c.Next()
 }

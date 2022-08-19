@@ -19,7 +19,7 @@ import (
 func Register{{.ServiceType}}Router(r *gin.Engine) {
 	{{- range .Methods}}
 	{{- if .RequireToken}}
-	r.{{.Method}}("{{.Path}}", JWTAuthMiddleware, _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler)
+	r.{{.Method}}("{{.Path}}", WooAuthMiddleware, _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler)
 	{{- else}}
 	r.{{.Method}}("{{.Path}}", _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler)
 	{{end}}
@@ -34,7 +34,6 @@ func _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(c *gin.Context) {
 		})
 	}
 	uv := c.Request.Form
-
 	var req *{{.Request}} = new({{.Request}})
 	{{- range .Fields}}
 	uv.Add("{{.ProtoName}}", c.Param("{{.ProtoName}}"))
@@ -85,8 +84,6 @@ func {{$svrType}}{{.Name}}BusinessHandler{{.HandlerNum}}(req *{{.Request}}, c *g
 		return {{.Reply}}{}, fmt.Errorf("username or password error")
 	}
 	{{- else}}
-	// Here can put your business logic, can use ORM:github.com/go-woo/protoc-gen-ent
-	// Below is example business logic code
 	{{- if .RequireToken}}
 	if u, ok := c.Get("userid"); ok {
 		fmt.Printf("get userid %v ok", u)
@@ -94,6 +91,8 @@ func {{$svrType}}{{.Name}}BusinessHandler{{.HandlerNum}}(req *{{.Request}}, c *g
 		return {{.Reply}}{}, fmt.Errorf("username or password error")
 	}
 	{{end}}
+	// Here can put your business logic, can use ORM:github.com/go-woo/protoc-gen-ent
+	// //INSERT_POINT: DO NOT DELETE THIS LINE!
 	return {{.Reply}}{}, nil{{end}}
 }
 {{end}}
@@ -102,6 +101,8 @@ var authTypeTemplate = `
 
 import (
 	"fmt"
+	"github.com/casbin/casbin/v2"
+	entadapter "github.com/casbin/ent-adapter"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt"
 	"net/http"
@@ -114,8 +115,20 @@ type MyCustomClaims struct {
 	jwt.StandardClaims
 }
 
+
 var mySigningKey = []byte("dangerous")
 
+var enforcer *casbin.Enforcer
+
+func init() {
+	a, err := entadapter.NewAdapter("mysql", "root:123456@tcp(127.0.0.1:3306)/casbin")
+	if err != nil {
+		panic(err)
+	}
+	if enforcer, err = casbin.NewEnforcer("./rbac_model.conf", a); err != nil {
+		panic(err)
+	}
+}
 func genToken(claims MyCustomClaims) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signToken, err := token.SignedString(mySigningKey)
@@ -142,27 +155,34 @@ func parserToken(signToken string) (*MyCustomClaims, error) {
 	}
 }
 
-func JWTAuthMiddleware(c *gin.Context) {
+func WooAuthMiddleware(c *gin.Context) {
 	signToken := c.Request.Header.Get("Authorization")
 	if signToken == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 			"reason": "Authorization can't null",
 			"msg":    "",
 		})
-		c.Abort()
 		return
 	}
 	myclaims, err := parserToken(signToken)
 	if err != nil {
 		fmt.Println(err)
-		c.JSON(http.StatusUnauthorized, gin.H{
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 			"reason": "Token is invalid",
 			"msg":    "",
 		})
-		c.Abort()
 		return
 	}
 	c.Set("userid", myclaims.Id)
+	c.Set("username", myclaims.Username)
+	if has, err := enforcer.Enforce(myclaims.Username, c.Request.RequestURI, c.Request.Method); err != nil || !has {
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+			"reason": "casbin did not permission",
+			"msg":    "forbidden",
+		})
+		return
+	}
+
 	c.Next()
 }
 `

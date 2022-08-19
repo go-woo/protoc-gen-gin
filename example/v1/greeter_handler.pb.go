@@ -16,13 +16,13 @@ import (
 
 func GreeterSayHelloBusinessHandler0(req *HelloRequest, c *gin.Context) (HelloReply, error) {
 	// Here can put your business logic, can use ORM:github.com/go-woo/protoc-gen-ent
-	// Below is example business logic code
+	// //INSERT_POINT: DO NOT DELETE THIS LINE!
 	return HelloReply{}, nil
 }
 
 func GreeterCreateUserBusinessHandler0(req *CreateUserRequest, c *gin.Context) (CreateUserReply, error) {
 	// Here can put your business logic, can use ORM:github.com/go-woo/protoc-gen-ent
-	// Below is example business logic code
+	// //INSERT_POINT: DO NOT DELETE THIS LINE!
 	return CreateUserReply{}, nil
 }
 
@@ -41,31 +41,31 @@ func GreeterLoginBusinessHandler0(req *LoginRequest, c *gin.Context) (LoginReply
 }
 
 func GreeterUpdateUserBusinessHandler0(req *UpdateUserRequest, c *gin.Context) (UpdateUserReply, error) {
-	// Here can put your business logic, can use ORM:github.com/go-woo/protoc-gen-ent
-	// Below is example business logic code
 	if u, ok := c.Get("userid"); ok {
 		fmt.Printf("get userid %v ok", u)
 	} else {
 		return UpdateUserReply{}, fmt.Errorf("username or password error")
 	}
 
+	// Here can put your business logic, can use ORM:github.com/go-woo/protoc-gen-ent
+	// //INSERT_POINT: DO NOT DELETE THIS LINE!
 	return UpdateUserReply{}, nil
 }
 
 func GreeterDeleteUserBusinessHandler0(req *UserRequest, c *gin.Context) (UserReply, error) {
-	// Here can put your business logic, can use ORM:github.com/go-woo/protoc-gen-ent
-	// Below is example business logic code
 	if u, ok := c.Get("userid"); ok {
 		fmt.Printf("get userid %v ok", u)
 	} else {
 		return UserReply{}, fmt.Errorf("username or password error")
 	}
 
+	// Here can put your business logic, can use ORM:github.com/go-woo/protoc-gen-ent
+	// //INSERT_POINT: DO NOT DELETE THIS LINE!
 	return UserReply{}, nil
 }
 
 func GreeterListUsersBusinessHandler0(req *UserRequest, c *gin.Context) (UserReplys, error) {
 	// Here can put your business logic, can use ORM:github.com/go-woo/protoc-gen-ent
-	// Below is example business logic code
+	// //INSERT_POINT: DO NOT DELETE THIS LINE!
 	return UserReplys{}, nil
 }
