@@ -1,6 +1,6 @@
 // Auth use data type.
 // versions:
-// - protoc-gen-gin v0.0.1
+// - protoc-gen-gin v0.0.3
 // - protoc  v3.12.4
 // source: example/v1/greeter.proto
 
@@ -18,7 +18,7 @@ import (
 )
 
 type MyCustomClaims struct {
-	Id       int    `json:"id"`
+	Domain   int    `json:"domain"`
 	Username string `json:"username"`
 	jwt.StandardClaims
 }
@@ -84,9 +84,9 @@ func WooAuthMiddleware(c *gin.Context) {
 		})
 		return
 	}
-	c.Set("userid", myclaims.Id)
+	c.Set("domain", myclaims.Domain)
 	c.Set("username", myclaims.Username)
-	if has, err := enforcer.Enforce(myclaims.Username, c.Request.RequestURI, c.Request.Method); err != nil || !has {
+	if has, err := enforcer.Enforce(myclaims.Username, myclaims.Domain, c.Request.RequestURI, c.Request.Method); err != nil || !has {
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 			"reason": "casbin did not permission",
 			"msg":    "forbidden",

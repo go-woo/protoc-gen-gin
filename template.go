@@ -32,10 +32,11 @@ func _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(c *gin.Context) {
 			"reason": "form data format error",
 			"msg":    "",
 		})
+		return
 	}
 	uv := c.Request.Form
 	var req *{{.Request}} = new({{.Request}})
-	{{- range .Fields}}
+	{{- range .Vars}}
 	uv.Add("{{.ProtoName}}", c.Param("{{.ProtoName}}"))
 	{{- end}}
 	if len(uv) > 0 {
@@ -44,6 +45,7 @@ func _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(c *gin.Context) {
 				"reason": "request data format error",
 				"msg":    "",
 			})
+			return
 		}
 	}
 	reply, err := {{$svrType}}{{.Name}}BusinessHandler{{.Num}}(req, c)
@@ -52,6 +54,7 @@ func _{{$svrType}}_{{.Name}}{{.Num}}_HTTP_Handler(c *gin.Context) {
 			"reason": "BusinessHandler error",
 			"msg":    "",
 		})
+		return
 	}
 	c.JSON(http.StatusOK, &reply)
 }
@@ -85,14 +88,11 @@ func {{$svrType}}{{.Name}}BusinessHandler{{.HandlerNum}}(req *{{.Request}}, c *g
 	}
 	{{- else}}
 	{{- if .RequireToken}}
-	if u, ok := c.Get("userid"); ok {
-		fmt.Printf("get userid %v ok", u)
-	} else {
-		return {{.Reply}}{}, fmt.Errorf("username or password error")
-	}
-	{{end}}
+	//u, _ := c.Get("username")	// username 
+	//t, _ := c.Get("domain")	// tenant {{end}}
 	// Here can put your business logic, can use ORM:github.com/go-woo/protoc-gen-ent
-	// //INSERT_POINT: DO NOT DELETE THIS LINE!
+	// INSERT_POINT: DO NOT DELETE THIS LINE!
+
 	return {{.Reply}}{}, nil{{end}}
 }
 {{end}}
@@ -106,11 +106,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt"
 	"net/http"
+	"os"
 	"strings"
 )
 
 type MyCustomClaims struct {
-	Id       int    ` + "`json:\"id\"`" + `
+	Domain   int    ` + "`json:\"domain\"`" + `
 	Username string ` + "`json:\"username\"`" + `
 	jwt.StandardClaims
 }
@@ -177,9 +178,9 @@ func WooAuthMiddleware(c *gin.Context) {
 		})
 		return
 	}
-	c.Set("userid", myclaims.Id)
+	c.Set("domain", myclaims.Domain)
 	c.Set("username", myclaims.Username)
-	if has, err := enforcer.Enforce(myclaims.Username, c.Request.RequestURI, c.Request.Method); err != nil || !has {
+	if has, err := enforcer.Enforce(myclaims.Username, myclaims.Domain, c.Request.RequestURI, c.Request.Method); err != nil || !has {
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 			"reason": "casbin did not permission",
 			"msg":    "forbidden",
@@ -219,17 +220,14 @@ type methodDesc struct {
 	HasBody      bool
 	Body         string
 	ResponseBody string
-	Fields       []*RequestField
+	Vars         []*PathVar
 	LoginUrl     string
 	RequireToken bool
 	IsLogin      bool
 }
 
-type RequestField struct {
+type PathVar struct {
 	ProtoName string
-	GoName    string
-	GoType    string
-	ConvExpr  string
 }
 
 func (s *serviceDesc) execute(tpl string) string {

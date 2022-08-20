@@ -253,36 +253,19 @@ func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, method, path
 	if path == loginUrl {
 		isLogin = true
 	}
-
+	var vname []*PathVar
 	vars := buildPathVars(path)
-
-	for v, s := range vars {
+	for v, _ := range vars {
 		fields := m.Input.Desc.Fields()
-
-		if s != nil {
-			path = replacePath(v, *s, path)
+		if strings.Contains(v, ".") || strings.Contains(v, ":") {
+			fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: The parameter %v format did not match Gin rule.\n", v)
+			continue
 		}
-		for _, field := range strings.Split(v, ".") {
-			if strings.TrimSpace(field) == "" {
-				continue
-			}
-			if strings.Contains(field, ":") {
-				field = strings.Split(field, ":")[0]
-			}
-			fd := fields.ByName(protoreflect.Name(field))
-			if fd == nil {
-				fmt.Fprintf(os.Stderr, "\u001B[31mERROR\u001B[m: The corresponding field '%s' declaration in message could not be found in '%s'\n", v, path)
-				os.Exit(2)
-			}
-			if fd.IsMap() {
-				fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: The field in path:'%s' shouldn't be a map.\n", v)
-			} else if fd.IsList() {
-				fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: The field in path:'%s' shouldn't be a list.\n", v)
-			} else if fd.Kind() == protoreflect.MessageKind || fd.Kind() == protoreflect.GroupKind {
-				//fmt.Fprintf(os.Stderr, "\u001B[31mWARN\u001B[m: The field in path:'%s' shouldn't be a message or group follow ent.\n", v)
-				fields = fd.Message().Fields()
-			}
+		if fields.ByName(protoreflect.Name(v)) == nil {
+			fmt.Fprintf(os.Stderr, "\u001B[31mERROR\u001B[m: The corresponding field '%s' declaration in message could not be found in '%s'\n", v, path)
+			continue
 		}
+		vname = append(vname, &PathVar{ProtoName: v})
 	}
 
 	for v, _ := range vars {
@@ -302,6 +285,7 @@ func buildMethodDesc(g *protogen.GeneratedFile, m *protogen.Method, method, path
 		Path:         path,
 		Method:       method,
 		HasVars:      len(vars) > 0,
+		Vars:         vname,
 		LoginUrl:     loginUrl,
 		RequireToken: requireToken,
 		IsLogin:      isLogin,
